@@ -1,0 +1,398 @@
+"use client";
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { PDFDocument } from 'pdf-lib';
+import toast from 'react-hot-toast';
+import { areDroppedComponentsEqual, areRecipientsEqual } from '@/utils/comparison';
+import { blobToURL, downloadPdf, mergeFieldsIntoPdf, sanitizeFileName, savePdfBlob } from '@/lib/pdf';
+import { serializeDroppedComponentToField, uploadToServer } from '@/lib/api';
+import { getInMemoryAccessToken } from '@/lib/accessTokenStore';
+import { getCsrfHeaders } from '@/utils/cookies';
+import { serializePageRect } from '@/utils/builder/pageRect';
+import { Doc, DroppedComponent, HandleSavePDFOptions, Recipient } from '@/types/types';
+
+interface UseDocumentSaveArgs {
+  selectedFile: File | string | Doc | null;
+  setSelectedFile: (value: File | string | Doc | null) => void;
+  pdfDoc: PDFDocument | null;
+  documentName: string;
+  setDocumentName: (name: string) => void;
+  droppedComponents: DroppedComponent[];
+  recipients: Recipient[];
+  currentPage: number;
+  zoom: number;
+  documentId: string | null;
+  setDocumentId: React.Dispatch<React.SetStateAction<string | null>>;
+  signingToken?: string;
+  isReadOnly: boolean;
+  isLoggedIn: boolean;
+  setShowModal: React.Dispatch<React.SetStateAction<boolean>>;
+  documentRef: React.RefObject<HTMLDivElement | null>;
+  pageRefs: React.MutableRefObject<Array<HTMLDivElement | null>>;
+  setShowDeletedDialog: React.Dispatch<React.SetStateAction<boolean>>;
+  setError: React.Dispatch<React.SetStateAction<string | null>>;
+  isEditingFileName: boolean;
+  isPreviewOnly: boolean;
+  isTemplateEditor?: boolean;
+  onReviewedFieldsSaved?: (savedVersion?: number) => void;
+  reviewedDocumentVersion?: number | null;
+}
+
+export const useDocumentSave = ({
+  selectedFile,
+  setSelectedFile,
+  pdfDoc,
+  documentName,
+  setDocumentName,
+  droppedComponents,
+  recipients,
+  currentPage,
+  zoom,
+  documentId,
+  setDocumentId,
+  signingToken,
+  isReadOnly,
+  isLoggedIn,
+  setShowModal,
+  documentRef,
+  pageRefs,
+  setShowDeletedDialog,
+  setError,
+  isEditingFileName,
+  isPreviewOnly,
+  isTemplateEditor = false,
+  onReviewedFieldsSaved,
+  reviewedDocumentVersion = null,
+}: UseDocumentSaveArgs) => {
+  const [lastSavedState, setLastSavedState] = useState<{
+    components: DroppedComponent[];
+    name: string;
+    recipients: Recipient[];
+  } | null>(null);
+
+  const lastSavedNameRef = useRef<string | null>(null);
+  const suppressFinalizeRef = useRef(false);
+  const finalizeSessionRef = useRef<() => Promise<void>>(async () => {});
+
+  useEffect(() => {
+    if (lastSavedNameRef.current === null && documentName) {
+      lastSavedNameRef.current = documentName;
+    }
+  }, [documentName]);
+
+  const markSavedState = useCallback((state: { components: DroppedComponent[]; name: string; recipients: Recipient[] }) => {
+    suppressFinalizeRef.current = false;
+    setLastSavedState(state);
+    lastSavedNameRef.current = state.name;
+  }, []);
+
+  const saveToServer = useCallback(async (): Promise<boolean> => {
+    if (isPreviewOnly) return false;
+
+    try {
+      if (isTemplateEditor) {
+        if (!documentId) return false;
+
+        const templateName = documentName.trim();
+        if (!templateName) {
+          toast.error('Template name is required.');
+          return false;
+        }
+
+        const canvasRect = documentRef.current?.getBoundingClientRect();
+        const fieldsPayload = droppedComponents.map((component) =>
+          serializeDroppedComponentToField(component, {
+            currentPage,
+            canvasRect,
+            pageRect:
+              pageRefs.current[(component.pageNumber ?? currentPage) - 1]?.getBoundingClientRect() ??
+              component.pageRect,
+            zoom,
+          })
+        );
+
+        const defaultSignersPayload = recipients.map((recipient, index) => ({
+          id: recipient.id,
+          name: recipient.name,
+          email: recipient.email,
+          role: recipient.role,
+          order: typeof recipient.order === 'number' ? recipient.order : index + 1,
+        }));
+
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+          ...getCsrfHeaders(),
+        };
+        const token = getInMemoryAccessToken();
+        if (token) {
+          headers.Authorization = `Bearer ${token}`;
+        }
+
+        const response = await fetch(`/api/templates/${encodeURIComponent(documentId)}`, {
+          method: 'PUT',
+          headers,
+          credentials: 'include',
+          body: JSON.stringify({
+            name: templateName,
+            fields: fieldsPayload,
+            defaultSigners: defaultSignersPayload,
+          }),
+        });
+
+        if (!response.ok) {
+          const payload = await response.json().catch(() => null);
+          const message =
+            payload?.message || payload?.error || `Failed to update template (${response.status})`;
+          throw new Error(message);
+        }
+
+        const payload = await response.json();
+        const nextTemplateName = payload?.template?.name || templateName;
+        setDocumentName(nextTemplateName);
+        markSavedState({
+          components: droppedComponents,
+          name: nextTemplateName,
+          recipients,
+        });
+        return true;
+      }
+
+      if (!selectedFile || !pdfDoc) return false;
+      const blob = await savePdfBlob(pdfDoc);
+      const safeName = sanitizeFileName(documentName);
+      const currentdoc = documentId || (typeof window !== 'undefined' ? localStorage.getItem('currentDocumentId') : null);
+      const sessionId = typeof window !== 'undefined' ? localStorage.getItem('currentSessionId') : null;
+      const canvasRect = documentRef.current?.getBoundingClientRect();
+      const payloadComponents = droppedComponents.map(c => ({
+        ...c,
+        pageRect: serializePageRect(
+          pageRefs.current[(c.pageNumber ?? currentPage) - 1]?.getBoundingClientRect() ?? c.pageRect,
+          canvasRect,
+          zoom
+        ),
+      }));
+      const result = await uploadToServer(
+        blob,
+        safeName,
+        currentPage,
+        payloadComponents,
+        recipients,
+        currentdoc,
+        setDocumentId,
+        setDocumentName,
+        setSelectedFile,
+        sessionId,
+        signingToken,
+        false,
+        { fieldsReviewed: true, reviewedVersion: reviewedDocumentVersion }
+      );
+      if (result && result.documentId) {
+        setDocumentId(result.documentId);
+      }
+      markSavedState({
+        components: droppedComponents,
+        name: result?.documentName || documentName,
+        recipients: recipients,
+      });
+      onReviewedFieldsSaved?.(
+        typeof result?.version === 'number' ? result.version : undefined
+      );
+      return true;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
+      if (errorMessage.includes("Status: 404")) {
+        setShowDeletedDialog(true);
+      } else if (errorMessage.includes("No PDF header found") || errorMessage.includes("Failed to fetch")) {
+        setShowDeletedDialog(true);
+      } else {
+        toast.error(isTemplateEditor ? "An error occurred while saving the template." : "An error occurred while saving the document.");
+      }
+      return false;
+    }
+  }, [isPreviewOnly, isTemplateEditor, documentId, documentName, documentRef, droppedComponents, currentPage, pageRefs, zoom, recipients, setDocumentName, markSavedState, selectedFile, pdfDoc, setDocumentId, setSelectedFile, signingToken, setShowDeletedDialog, onReviewedFieldsSaved, reviewedDocumentVersion]);
+
+  const handleSavePDF = useCallback(async ({
+    isServerSave = false,
+    isDownload = false,
+    isMergeFields = false,
+  }: HandleSavePDFOptions): Promise<boolean | null> => {
+    if (isPreviewOnly) {
+      return null;
+    }
+    if (!isLoggedIn) {
+      setShowModal(true);
+      return null;
+    }
+
+    if (isServerSave) {
+      return await saveToServer();
+    }
+
+    if (!selectedFile || !pdfDoc) {
+      console.error("No file selected!");
+      return null;
+    }
+
+    const canvas = documentRef.current;
+    const canvasRect = canvas?.getBoundingClientRect();
+    if (!canvasRect) return null;
+
+    try {
+      const safeName = sanitizeFileName(documentName);
+
+      if (isMergeFields) {
+        // Field merging mutates a PDFDocument. Work on a clone so a download never
+        // flattens values into the PDF currently displayed by the builder.
+        const downloadPdfDoc = await PDFDocument.load(await pdfDoc.save());
+        await mergeFieldsIntoPdf(downloadPdfDoc, droppedComponents, pageRefs, canvasRect, currentPage);
+        const mergedBlob = await savePdfBlob(downloadPdfDoc);
+        if (isDownload) {
+          downloadPdf(mergedBlob, safeName);
+        } else {
+          setSelectedFile(await blobToURL(mergedBlob));
+        }
+      } else {
+        const blob = await savePdfBlob(pdfDoc);
+        if (isDownload) {
+          downloadPdf(blob, safeName);
+        } else {
+          setSelectedFile(await blobToURL(blob));
+        }
+      }
+      return true;
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      if (errorMessage.includes("Status: 404")) {
+        setShowDeletedDialog(true);
+      } else {
+        setError("Failed to save document.");
+      }
+      return null;
+    }
+  }, [currentPage, documentName, documentRef, droppedComponents, isPreviewOnly, isLoggedIn, pageRefs, pdfDoc, saveToServer, selectedFile, setError, setSelectedFile, setShowDeletedDialog, setShowModal]);
+
+  const hasUnsavedChanges = useMemo(() => {
+    if (!lastSavedState) return false;
+
+    const fieldsChanged = !areDroppedComponentsEqual(droppedComponents, lastSavedState.components);
+    const recipientsChanged = !areRecipientsEqual(recipients, lastSavedState.recipients);
+    const nameChanged = documentName.trim() !== lastSavedState.name.trim();
+
+    return fieldsChanged || recipientsChanged || nameChanged;
+  }, [droppedComponents, recipients, documentName, lastSavedState]);
+
+  const discardUnsavedChanges = useCallback(() => {
+    suppressFinalizeRef.current = true;
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('currentSessionId');
+    }
+  }, []);
+
+  // Keep the latest editor state available to the one lifecycle listener below.
+  // This avoids finalizing on every field change when effect dependencies update.
+  finalizeSessionRef.current = async () => {
+      try {
+        if (suppressFinalizeRef.current) return;
+        // Never persist draft field state while the user is deciding whether to discard it.
+        if (hasUnsavedChanges) return;
+        if (isReadOnly || isPreviewOnly || isTemplateEditor) return;
+        if (typeof window === 'undefined') return;
+        const currentDocumentId = localStorage.getItem('currentDocumentId');
+        const currentSessionId = localStorage.getItem('currentSessionId');
+        if (!currentDocumentId || !currentSessionId) return;
+
+        const formData = new FormData();
+        formData.append('documentId', currentDocumentId);
+        formData.append('isMetadataOnly', 'true');
+        formData.append('sessionId', currentSessionId);
+
+        const canvasRect = documentRef.current?.getBoundingClientRect();
+        formData.append('fields', JSON.stringify(droppedComponents.map((component) =>
+          serializeDroppedComponentToField(component, {
+            currentPage,
+            canvasRect,
+            pageRect:
+              pageRefs.current[(component.pageNumber ?? currentPage) - 1]?.getBoundingClientRect() ??
+              component.pageRect,
+            zoom,
+          })
+        )));
+        formData.append('recipients', JSON.stringify(recipients));
+        formData.append('changeLog', 'Finalize session: metadata update');
+
+        if (documentName && documentName.trim()) {
+          const cleanName = documentName.trim();
+          formData.append('documentName', cleanName);
+        }
+
+        const headers: Record<string, string> = {};
+        const token = getInMemoryAccessToken();
+        if (token) {
+          headers.Authorization = `Bearer ${token}`;
+        }
+        const res = await fetch('/api/documents/upload', {
+          method: 'POST',
+          body: formData,
+          credentials: 'include',
+          keepalive: true,
+          headers,
+        });
+
+        if (!res.ok) {
+          console.warn('Finalize session request failed', await res.text());
+        }
+
+        localStorage.removeItem('currentSessionId');
+      } catch (err) {
+        console.error('Failed to finalize session:', err);
+      }
+  };
+
+  useEffect(() => {
+    const finalizeSession = () => {
+      void finalizeSessionRef.current();
+    };
+    window.addEventListener('beforeunload', finalizeSession);
+
+    return () => {
+      window.removeEventListener('beforeunload', finalizeSession);
+      finalizeSession();
+    };
+  }, []);
+
+  // Auto-save metadata when user finishes renaming
+  useEffect(() => {
+    const saveRenameIfNeeded = async () => {
+      if (isReadOnly || isPreviewOnly || isTemplateEditor) return;
+      const id = documentId || (typeof window !== 'undefined' ? localStorage.getItem('currentDocumentId') : null);
+      if (!id) return;
+      if (lastSavedNameRef.current !== documentName && documentName && documentName.trim()) {
+        try {
+          const sessionId = typeof window !== 'undefined' ? localStorage.getItem('currentSessionId') : null;
+          const res = await uploadToServer(null, documentName.trim(), currentPage, droppedComponents, recipients, id, setDocumentId, setDocumentName, setSelectedFile, sessionId, signingToken, true);
+          if (res && res.documentName) {
+            setDocumentName(res.documentName as string);
+            lastSavedNameRef.current = res.documentName as string;
+          } else {
+            lastSavedNameRef.current = documentName;
+          }
+        } catch (err) {
+          console.error('Failed to save renamed document name:', err);
+        }
+      }
+    };
+
+    if (!isEditingFileName) {
+      saveRenameIfNeeded();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditingFileName, isPreviewOnly, isReadOnly, isTemplateEditor]);
+
+  return {
+    saveToServer,
+    handleSavePDF,
+    hasUnsavedChanges,
+    markSavedState,
+    discardUnsavedChanges,
+  };
+};

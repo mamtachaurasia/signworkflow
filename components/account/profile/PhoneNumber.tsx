@@ -1,0 +1,119 @@
+import { Button, SaveButton } from '@ui';
+import { User } from '@/types/types';
+import { useState } from 'react';
+import PhoneInput, { isValidPhoneNumber } from 'react-phone-number-input';
+
+const sanitizePhone = (phone?: string | number): string | undefined => {
+  if (!phone) return undefined;
+
+  const phoneStr = phone.toString();
+  try {
+    if (isValidPhoneNumber(phoneStr)) return phoneStr;
+  } catch {}
+  return undefined; // fallback to empty input if invalid
+};
+
+export default function PhoneNumber({ label, user, isSaving, handleSave }: {
+  label: string;
+  user: User;
+  isSaving: boolean;
+  handleSave: (data: Partial<User>) => Promise<void>;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [draft, setDraft] = useState<string | undefined>(
+    sanitizePhone(user.phone)
+  );
+  const [error, setError] = useState<string | null>(null);
+
+  const hasChanges = draft !== sanitizePhone(user.phone);
+
+  const startEditing = () => {
+    setError(null);
+    setDraft(sanitizePhone(user.phone));
+    setIsEditing(true);
+  };
+
+  const onCancel = () => {
+    setDraft(sanitizePhone(user.phone));
+    setError(null);
+    setIsEditing(false);
+  };
+
+  const onSave = async () => {
+    if (!draft) {
+      setError('Phone cannot be empty');
+      return;
+    }
+
+    if (!isValidPhoneNumber(draft)) {
+      setError('Please enter a valid phone number');
+      return;
+    }
+
+    if (!hasChanges) {
+      setIsEditing(false);
+      return;
+    }
+
+    await handleSave({ phone: draft }); // store E.164 string
+    setIsEditing(false);
+  };
+
+  return (
+    <div className="py-4 border-b">
+      <div className="flex flex-col gap-3 sm:flex-row items-end sm:justify-between">
+        <div className="flex-1 min-w-0">
+          <label className="text-sm text-slate-500">{label}</label>
+          {!isEditing && (
+            <p className="font-medium">
+              {sanitizePhone(user.phone) ? sanitizePhone(user.phone) : 'Not added'}
+            </p>
+          )}
+
+          {isEditing && (
+            <div className="space-y-2">
+              <PhoneInput
+                international
+                defaultCountry="US"
+                value={draft}
+                onChange={setDraft}
+                className="w-full"
+                numberInputProps={{
+                  className: 'h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm',
+                }}
+              />
+              {error && <p className="text-xs text-red-500">{error}</p>}
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          {isEditing ? (
+            <>
+              <SaveButton
+                disabled={isSaving || !hasChanges}
+                className="h-9 px-3 text-xs"
+                label="Save changes"
+                saving={isSaving}
+                onClick={onSave}
+              />
+              <Button size="sm"
+                onClick={onCancel}
+                inverted
+                className="h-9 px-3 text-xs"
+                label="Cancel"
+              />
+            </>
+          ) : (
+            <Button size="sm"
+              onClick={startEditing}
+              inverted
+              className="h-9 px-3 text-xs"
+              label="Change"
+            />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

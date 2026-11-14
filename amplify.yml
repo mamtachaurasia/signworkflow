@@ -1,0 +1,92 @@
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - npm ci
+    build:
+      commands:
+        # Write only the vars we want into `.env` for Next.js build
+        - echo "MONGODB_URI=$MONGODB_URI" >> .env
+        - echo "NEXTAUTH_URL=$NEXTAUTH_URL" >> .env
+        - echo "NEXT_PUBLIC_BASE_URL=$NEXT_PUBLIC_BASE_URL" >> .env
+        - echo "JWT_SECRET=$JWT_SECRET" >> .env
+        - echo "NEXTAUTH_SECRET=$NEXTAUTH_SECRET" >> .env
+        - echo "GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID" >> .env
+        - echo "GOOGLE_CLIENT_SECRET=$GOOGLE_CLIENT_SECRET" >> .env
+        - echo "NEXT_PUBLIC_GOOGLE_CLIENT_ID=$NEXT_PUBLIC_GOOGLE_CLIENT_ID" >> .env
+        - echo "SMTP_HOST=$SMTP_HOST" >> .env
+        - echo "SMTP_PORT=$SMTP_PORT" >> .env
+        - echo "SMTP_SECURE=$SMTP_SECURE" >> .env
+        - echo "SMTP_USER=$SMTP_USER" >> .env
+        - echo "SMTP_PASS=$SMTP_PASS" >> .env
+        - echo "SMTP_FROM=$SMTP_FROM" >> .env
+        - echo "ACCESS_AWS_KEY_ID=$ACCESS_AWS_KEY_ID" >> .env
+        - echo "SECRET_AWS_ACCESS_KEY=$SECRET_AWS_ACCESS_KEY" >> .env
+        - echo "REGION_AWS=$REGION_AWS" >> .env
+        - echo "S3_BUCKET_NAME=$S3_BUCKET_NAME" >> .env
+        # Optional
+        # - echo "NEXT_PUBLIC_BUILDER_API_KEY=$NEXT_PUBLIC_BUILDER_API_KEY" >> .env
+        
+        - npm run build
+
+  artifacts:
+    baseDirectory: .next
+    files:
+      - '**/*'
+
+  cache:
+    paths:
+      - .next/cache/**/*
+      - node_modules/**/*
+
+# Correct headers for Google OAuth popup support
+httpHeaders:
+  - pattern: "**/*.html"
+    headers:
+      - key: Cross-Origin-Opener-Policy
+        value: same-origin-allow-popups
+      - key: Cross-Origin-Embedder-Policy
+        value: unsafe-none
+      - key: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      - key: X-Content-Type-Options
+        value: nosniff
+      - key: Strict-Transport-Security
+        value: max-age=63072000; includeSubDomains; preload
+
+environmentVariables:
+  # NOTE:
+  # All values must be configured in the Amplify console or environment,
+  # not committed in source control. The keys below document what the
+  # app expects but intentionally omit concrete values.
+
+  # DATABASE
+  MONGODB_URI: ""
+
+  # BASE URL
+  NEXTAUTH_URL: ""
+  NEXT_PUBLIC_BASE_URL: ""
+
+  # AUTH
+  JWT_SECRET: ""
+  NEXTAUTH_SECRET: ""
+
+  # GOOGLE OAUTH
+  GOOGLE_CLIENT_ID: ""
+  GOOGLE_CLIENT_SECRET: ""
+  NEXT_PUBLIC_GOOGLE_CLIENT_ID: ""
+
+  # SMTP
+  SMTP_HOST: ""
+  SMTP_PORT: ""
+  SMTP_SECURE: ""
+  SMTP_USER: ""
+  SMTP_PASS: ""
+  SMTP_FROM: ""
+
+  # AWS / S3
+  ACCESS_AWS_KEY_ID: ""
+  SECRET_AWS_ACCESS_KEY: ""
+  REGION_AWS: ""
+  S3_BUCKET_NAME: ""

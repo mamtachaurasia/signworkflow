@@ -1,0 +1,37 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    {
+      "path": "/api/cron/billing-renewals",
+      "schedule": "0 1 * * *"
+    },
+    {
+      "path": "/api/cron/user-purge",
+      "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/retention-purge",
+      "schedule": "30 2 * * *"
+    },
+    {
+      "path": "/api/cron/webhook-deliveries",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/cloud-exports",
+      "schedule": "30 3 * * *"
+    },
+    {
+      "path": "/api/cron/signing-emails",
+      "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/cron/integration-outbox",
+      "schedule": "30 4 * * *"
+    },
+    {
+      "path": "/api/cron/trial-expiration-emails",
+      "schedule": "0 5 * * *"
+    }
+  ]
+}
