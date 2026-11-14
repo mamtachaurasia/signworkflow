@@ -1,0 +1,314 @@
+@import 'tailwindcss';
+@config '../tailwind.config.ts';
+
+@theme {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-brand: oklch(0.54 0.22 264);
+  --color-brand-light: oklch(0.65 0.18 264);
+  --color-brand-50: oklch(0.97 0.03 264);
+  --color-brand-100: oklch(0.94 0.05 264);
+  --color-brand-200: oklch(0.89 0.08 264);
+  --color-brand-300: oklch(0.82 0.12 264);
+  --color-brand-400: oklch(0.74 0.15 264);
+  --color-brand-500: oklch(0.65 0.18 264);
+  --color-brand-600: oklch(0.54 0.22 264);
+  --color-brand-700: oklch(0.47 0.19 264);
+  --color-brand-800: oklch(0.4 0.15 264);
+  --color-brand-900: oklch(0.33 0.11 264);
+
+  --cursor-fieldpicked:
+    url(data:image/svg+xml,%3Csvg%20width%3D%2240%22%20height%3D%2240%22%20viewBox%3D%220.5%200.05%201%201.5%22%20xml%3Aspace%3D%22preserve%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cpath%20d%3D%22m.545%201.302-.07-.062a.3.3%200%200%201-.079-.114L.295.848A.05.05%200%200%201%20.32.787.1.1%200%200%201%20.357.779a.09.09%200%200%201%20.078.047l.092.185A.12.12%200%200%200%20.576.913V.325C.576.283.61.251.651.251s.075.034.075.075v.4a.075.075%200%201%201%20.15%200v.025a.075.075%200%201%201%20.15%200v.016a.075.075%200%201%201%20.15%200v.405a.16.16%200%200%201-.029.094%22%20fill%3D%22%23fff%22%20stroke%3D%22%23455A64%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20stroke-miterlimit%3D%2210%22%20stroke-width%3D%22.016%22%2F%3E%3Cpath%20fill%3D%22none%22%20stroke%3D%22%23455A64%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20stroke-miterlimit%3D%2210%22%20d%3D%22M.509.184.474.149M.651.125V.074m.141.109L.827.148M.85.325h.016m-.5%200h.016%22%20stroke-width%3D%22.016%22%2F%3E%3Cpath%20fill%3D%22%23fff%22%20stroke%3D%22%23455A64%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20stroke-miterlimit%3D%2210%22%20d%3D%22M.525%201.525v-.15h.65v.15%22%20stroke-width%3D%22.016%22%2F%3E%3C%2Fsvg%3E),
+    pointer;
+}
+
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+}
+
+@utility bg-gradient {
+  background: radial-gradient(
+    114.65277499741333% 178.72598544585446% at 109.96528067168683%
+      70.44444178034368%,
+    #d8bcff,
+    #d7d3ff 20.633621513843536%,
+    #c2d6ff 37.56687461255907%,
+    #d6e5ff 55.662161111831665%,
+    #e0f1ff 67.38132238388062%,
+    #f8f9fd
+  );
+}
+
+@utility dropdown {
+  &:focus-within .dropdown-menu {
+    opacity: 1;
+    transform: translate(0) scale(1);
+    visibility: visible;
+  }
+}
+
+@utility dropdown-menu {
+  .dropdown:focus-within & {
+    opacity: 1;
+    transform: translate(0) scale(1);
+    visibility: visible;
+  }
+}
+
+@utility page-badge {
+  @apply hover:border-[#0777cf];
+  &::before {
+    content: attr(data-page-number);
+    @apply absolute top-0 left-0 bg-gray-300 text-black hover:bg-[#0777cf] hover:text-white px-2 py-1 text-xs rounded-br-md;
+  }
+  &.active-page::before {
+    @apply text-white bg-[#0777cf];
+  }
+}
+
+@utility active-page {
+  &.page-badge::before {
+    @apply text-white bg-[#0777cf];
+  }
+  @apply border-[#0777cf];
+}
+
+@utility primary-button {
+  @apply bg-blue-600 hover:bg-blue-700 text-white rounded-sm p-2;
+}
+
+@utility iconButton {
+  @apply w-8 h-8 p-1 text-gray-500 hover:text-gray-700 rounded-sm transition hover:bg-gray-100 flex items-center justify-center;
+}
+
+@utility sender-preview-modal {
+  @apply w-[96vw] md:w-[92vw] xl:w-[88vw] max-w-350! h-[92vh] max-h-[90vh] overflow-hidden;
+
+  & > header {
+    @apply absolute top-3 right-3 z-50 border-0 p-0 bg-transparent justify-end;
+  }
+
+  & > header > div:first-child {
+    @apply sr-only absolute h-full;
+  }
+
+  & > header button {
+    @apply rounded-full;
+  }
+
+  & > [data-slot="modal-body"] {
+    @apply h-full min-h-0 overflow-hidden p-0;
+  }
+
+  & > [data-slot="modal-body"] > div {
+    @apply h-full min-h-0;
+  }
+
+  & > [data-slot="modal-body"] > div > header {
+    @apply pr-14;
+  }
+}
+
+@utility dragging-no-select {
+  &body {
+    user-select: none; /* Standard syntax */
+  }
+}
+
+.pdf-page .react-pdf__Page__textContent {
+  user-select: text;
+}
+
+.pdf-page canvas {
+  user-select: none;
+}
+
+/* @font-face {
+  font-family: 'Plus Jakarta Sans';
+  src: url('/fonts/PlusJakartaSans.woff2?v=732533ac') format('woff2');
+  font-weight: 200 700;
+  font-display: swap;
+} */
+
+@layer base {
+  :root {
+    --radius: 0.625rem;
+
+    --background: oklch(1 0 0);
+    --foreground: oklch(0.145 0 0);
+
+    --card: oklch(1 0 0);
+    --card-foreground: oklch(0.145 0 0);
+    --popover: oklch(1 0 0);
+    --popover-foreground: oklch(0.145 0 0);
+
+    --primary: oklch(0.205 0 0);
+    --primary-foreground: oklch(0.985 0 0);
+
+    --secondary: oklch(0.97 0 0);
+    --secondary-foreground: oklch(0.205 0 0);
+
+    --muted: oklch(0.97 0 0);
+    --muted-foreground: oklch(0.556 0 0);
+
+    --accent: oklch(0.97 0 0);
+    --accent-foreground: oklch(0.205 0 0);
+
+    --destructive: oklch(0.577 0.245 27.325);
+    --destructive-foreground: 0.985 0 0;
+
+    --border: oklch(0.922 0 0);
+    --input: oklch(0.922 0 0);
+    --ring: oklch(0.708 0 0);
+    --state-300: 0.884 0.012 255;
+
+
+    --chart-1: oklch(0.87 0 0);
+    --chart-2: oklch(0.556 0 0);
+    --chart-3: oklch(0.439 0 0);
+    --chart-4: oklch(0.371 0 0);
+    --chart-5: oklch(0.269 0 0);
+
+    --sidebar: oklch(0.985 0 0);
+    --sidebar-foreground: oklch(0.145 0 0);
+    --sidebar-primary: oklch(0.205 0 0);
+    --sidebar-primary-foreground: oklch(0.985 0 0);
+    --sidebar-accent: oklch(0.97 0 0);
+    --sidebar-accent-foreground: oklch(0.205 0 0);
+    --sidebar-border: oklch(0.922 0 0);
+    --sidebar-ring: oklch(0.708 0 0);
+  }
+
+  .dark {
+    --background: oklch(0.145 0 0);
+    --foreground: oklch(0.985 0 0);
+    --card: oklch(0.205 0 0);
+    --card-foreground: oklch(0.985 0 0);
+    --popover: oklch(0.205 0 0);
+    --popover-foreground: oklch(0.985 0 0);
+    --primary: oklch(0.922 0 0);
+    --primary-foreground: oklch(0.205 0 0);
+    --secondary: oklch(0.269 0 0);
+    --secondary-foreground: oklch(0.985 0 0);
+    --muted: oklch(0.269 0 0);
+    --muted-foreground: oklch(0.708 0 0);
+    --accent: oklch(0.269 0 0);
+    --accent-foreground: oklch(0.985 0 0);
+    --destructive: oklch(0.704 0.191 22.216);
+    --border: oklch(1 0 0 / 10%);
+    --input: oklch(1 0 0 / 15%);
+    --ring: oklch(0.556 0 0);
+    --state-300: 1 0 0 / 16%;
+    --chart-1: oklch(0.87 0 0);
+    --chart-2: oklch(0.556 0 0);
+    --chart-3: oklch(0.439 0 0);
+    --chart-4: oklch(0.371 0 0);
+    --chart-5: oklch(0.269 0 0);
+    --sidebar: oklch(0.205 0 0);
+    --sidebar-foreground: oklch(0.985 0 0);
+    --sidebar-primary: oklch(0.488 0.243 264.376);
+    --sidebar-primary-foreground: oklch(0.985 0 0);
+    --sidebar-accent: oklch(0.269 0 0);
+    --sidebar-accent-foreground: oklch(0.985 0 0);
+    --sidebar-border: oklch(1 0 0 / 10%);
+    --sidebar-ring: oklch(0.556 0 0);
+  }
+}
+
+@layer utilities {
+  @keyframes logo-marquee {
+    from {
+      transform: translate3d(0, 0, 0);
+    }
+
+    to {
+      transform: translate3d(-50%, 0, 0);
+    }
+  }
+
+  .logo-marquee-track {
+    animation: logo-marquee var(--logo-marquee-duration, 34s) linear infinite;
+  }
+
+  .sidebar-gradient {
+    background: linear-gradient(
+      180deg,
+      oklch(0.24 0.068 251) 0%,
+      oklch(0.2 0.065 251) 100%
+    );
+  }
+
+
+  .account-theme .border-border,
+  .account-theme .border-slate-100,
+  .account-theme .border-slate-200,
+  .account-theme .border-slate-300,
+  .account-theme .border-gray-200,
+  .account-theme .border-gray-300,
+  .account-theme .border-sky-100,
+  .account-theme .border-orange-100 {
+    border-color: oklch(var(--state-300));
+  }
+
+  .account-theme .hover\:border-slate-200:hover,
+  .account-theme .hover\:border-slate-300:hover,
+  .account-theme .hover\:border-gray-200:hover,
+  .account-theme .hover\:border-gray-300:hover {
+    border-color: oklch(var(--state-300));
+  }
+}
+
+
+/***aside menus**/
+/* Base sidebar */
+.sidebar {
+  @apply transition-[width] duration-300 ease-in-out;
+}
+
+/* Collapsed state */
+.peer:checked ~ .sidebar {
+  @apply w-16 overflow-visible;
+}
+
+/* Toggle visibility */
+.peer:checked ~ .sidebar .logo-title{
+  @apply overflow-x-hidden;
+  
+}
+.peer:checked ~ .sidebar .logo-title svg text{
+  @apply hidden
+  
+}
+
+/* Hover triggers → SHOW panels */
+.peer:checked ~ .sidebar:has(.sidebar-item-documents:hover) .collapsed-panel-documents,
+.peer:checked ~ .sidebar:has(.collapsed-panel-documents:hover) .collapsed-panel-documents,
+.peer:checked ~ .sidebar:has(.sidebar-item-contacts:hover) .collapsed-panel-contacts,
+.peer:checked ~ .sidebar:has(.collapsed-panel-contacts:hover) .collapsed-panel-contacts,
+.peer:checked ~ .sidebar:has(.sidebar-item-account:hover) .collapsed-panel-account,
+.peer:checked ~ .sidebar:has(.collapsed-panel-account:hover) .collapsed-panel-account {
+  @apply translate-x-0 opacity-100 pointer-events-auto;
+}
+/***aside menus end**/
+ @keyframes gradient-flow {
+  0% { background-position: 0% 0%, 0% 50%; }
+  50% { background-position: 0% 0%, 100% 50%; }
+  100% { background-position: 0% 0%, 0% 50%; }
+}
+.animate-gradient-flow {
+  animation: gradient-flow 4s ease infinite;
+}
