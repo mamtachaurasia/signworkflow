@@ -27,7 +27,9 @@ type TrialExpirationOrganization = {
   trialEndsAt: Date;
 };
 
-export async function processTrialExpirationEmailJobs(options: { limit?: number } = {}) {
+export async function processTrialExpirationEmailJobs(
+  options: { limit?: number; baseUrl?: string } = {}
+) {
   await connectDB();
 
   const requestedLimit = options.limit ?? DEFAULT_LIMIT;
@@ -107,6 +109,7 @@ export async function processTrialExpirationEmailJobs(options: { limit?: number 
         recipientName,
         workspaceName: claimedOrganization.name,
         trialEndsAt: claimedOrganization.trialEndsAt,
+        ...(options.baseUrl ? { baseUrl: options.baseUrl } : {}),
       });
 
       if (!delivery.success) {

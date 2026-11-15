@@ -9,6 +9,7 @@ import {
   validateCsrfToken,
   withSecurityHeaders,
 } from '@/lib/auth';
+import { resolvePublicBaseUrl } from '@/lib/app-url';
 import { writeAuditEvent } from '@/lib/audit';
 import { getBillingConfigForMarket } from '@/lib/billing';
 import { startBillingCheckoutForUser } from '@/lib/billing-server';
@@ -149,7 +150,7 @@ export async function PATCH(req: NextRequest) {
 
   try {
     const checkoutSession = await startBillingCheckoutForUser({
-      baseUrl: (process.env.NEXT_PUBLIC_BASE_URL || '').trim() || new URL(req.url).origin,
+      baseUrl: resolvePublicBaseUrl({ req }),
       userId: context.userId,
       targetPlan: parsed.data.targetPlan,
       billingCycle: parsed.data.billingCycle,

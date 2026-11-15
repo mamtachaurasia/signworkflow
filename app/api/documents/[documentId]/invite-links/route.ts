@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 
 import connectDB from '@/utils/db';
+import { resolvePublicBaseUrl } from '@/lib/app-url';
 import DocumentModel, { type IDocumentRecipient } from '@/models/Document';
 import { issueSigningToken } from '@/lib/signing-token';
 import { isAdminRole } from '@/lib/role-utils';
@@ -13,14 +14,6 @@ import UserModel from '@/models/Users';
 type RouteContext = {
   params: Promise<{ documentId: string }>;
 };
-
-function getBaseUrl(req: NextRequest) {
-  return (
-    process.env.NEXT_PUBLIC_BASE_URL?.trim() ||
-    process.env.NEXTAUTH_URL?.trim() ||
-    req.nextUrl.origin
-  );
-}
 
 export const POST = withTrialWriteAccessFromAuthContext(async function POST(
   req: NextRequest,
@@ -73,7 +66,7 @@ export const POST = withTrialWriteAccessFromAuthContext(async function POST(
       );
     }
 
-    const baseUrl = getBaseUrl(req);
+    const baseUrl = resolvePublicBaseUrl({ req });
     const links: Array<{
       recipientId: string;
       name: string;

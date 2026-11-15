@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 
+import { resolvePublicBaseUrl } from '@/lib/app-url';
 import { writeAuditEvent } from '@/lib/audit';
 import {
   activatePayPalSubscription,
@@ -965,7 +966,7 @@ export async function resumePendingBillingCheckoutForUser(args: {
     }
 
     const checkoutSession = await createPayPalBillingCheckoutSession({
-      baseUrl: process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000',
+      baseUrl: resolvePublicBaseUrl(),
       userId: args.userId,
       userEmail: user.email,
       targetPlan,
@@ -1247,7 +1248,7 @@ export async function startBillingCheckoutForUser(args: {
         })
       ) {
         const pendingCheckoutSession = await createPayPalBillingCheckoutSession({
-          baseUrl: args.baseUrl || process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000',
+          baseUrl: resolvePublicBaseUrl({ explicitBaseUrl: args.baseUrl }),
           userId: args.userId,
           userEmail: user.email,
           targetPlan: args.targetPlan,
@@ -1446,7 +1447,7 @@ export async function startBillingCheckoutForUser(args: {
 
   if (targetProvider === 'paypal') {
     checkoutSession = await createPayPalBillingCheckoutSession({
-      baseUrl: args.baseUrl || process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000',
+      baseUrl: resolvePublicBaseUrl({ explicitBaseUrl: args.baseUrl }),
       userId: args.userId,
       userEmail: user.email,
       targetPlan: args.targetPlan,
@@ -1553,7 +1554,7 @@ export async function createPayPalCardOrderForUser(args: {
     orgId: organization ? String(organization._id) : null,
     customerId: currentBilling?.customerId || null,
     paymentMethod: args.paymentMethod || 'card',
-    baseUrl: process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000',
+    baseUrl: resolvePublicBaseUrl(),
   });
 
   if (organization) {

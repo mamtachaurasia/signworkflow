@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
+import { resolvePublicBaseUrl } from '@/lib/app-url';
 import { verifyCronRequest } from '@/lib/cron';
 import { processTrialExpirationEmailJobs } from '@/lib/trial-expiration-email-jobs';
 
@@ -19,7 +20,11 @@ async function handle(req: NextRequest) {
   }
 
   try {
-    const result = await processTrialExpirationEmailJobs({ limit: parsed.data.limit });
+    const baseUrl = resolvePublicBaseUrl({ req });
+    const result = await processTrialExpirationEmailJobs({
+      limit: parsed.data.limit,
+      baseUrl,
+    });
     return NextResponse.json(result);
   } catch (error) {
     console.error('Trial expiration email worker failed.', error);

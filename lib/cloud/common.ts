@@ -2,6 +2,7 @@ import { randomBytes } from 'crypto';
 import { NextRequest } from 'next/server';
 
 import type { CloudProviderId } from '@/lib/cloud/types';
+import { resolvePublicBaseUrl } from '@/lib/app-url';
 
 const PROVIDER_LABELS: Record<CloudProviderId, string> = {
   google_drive: 'Google Drive',
@@ -13,11 +14,7 @@ export function getCloudProviderLabel(provider: CloudProviderId): string {
 }
 
 export function getCloudBaseUrl(req?: NextRequest): string {
-  const configured = process.env.NEXT_PUBLIC_BASE_URL?.trim() || process.env.NEXTAUTH_URL?.trim();
-  if (configured) {
-    return configured.replace(/\/+$/, '');
-  }
-  return req?.nextUrl.origin.replace(/\/+$/, '') || 'http://localhost:3000';
+  return resolvePublicBaseUrl({ req });
 }
 
 export function resolveCloudRedirectUri(

@@ -7,6 +7,7 @@ import {
   isSecureRequest,
   withSecurityHeaders,
 } from '@/lib/auth';
+import { resolvePublicBaseUrl } from '@/lib/app-url';
 import { writeAuditEvent } from '@/lib/audit';
 import { sendPasswordResetEmail } from '@/lib/email';
 import connectDB from '@/utils/db';
@@ -119,7 +120,7 @@ export async function POST(req: NextRequest) {
 
     const resetToken = await generatePasswordResetToken(user._id.toString());
 
-    const baseUrl = (process.env.NEXT_PUBLIC_BASE_URL || '').trim() || new URL(req.url).origin;
+    const baseUrl = resolvePublicBaseUrl({ req });
     const resetLink = `${baseUrl}/reset-password?token=${encodeURIComponent(resetToken)}&email=${encodeURIComponent(normalizedEmail)}`;
     await sendPasswordResetEmail(normalizedEmail, resetLink);
 

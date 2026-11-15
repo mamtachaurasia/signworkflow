@@ -1,5 +1,6 @@
 import nodemailer, { type Transporter } from 'nodemailer';
 import { IDocumentRecipient } from '@/models/Document';
+import { resolvePublicBaseUrl } from '@/lib/app-url';
 
 interface DocumentEmailData {
   _id: string;
@@ -280,14 +281,8 @@ function createMailTransport(config: SmtpConfig): Transporter {
   });
 }
 
-function getBaseUrl(): string {
-  const configured = process.env.NEXT_PUBLIC_BASE_URL?.trim();
-  if (configured) return configured.replace(/\/$/, '');
-
-  const vercelUrl = process.env.VERCEL_URL?.trim();
-  if (vercelUrl) return `https://${vercelUrl.replace(/\/$/, '')}`;
-
-  return 'http://localhost:3000';
+function getBaseUrl(explicitBaseUrl?: string | null): string {
+  return resolvePublicBaseUrl({ explicitBaseUrl });
 }
 
 async function sendWithConfig(config: SmtpConfig, options: SendEmailOptions) {
@@ -1235,6 +1230,7 @@ export async function sendTrialExpirationEmail(params: {
   recipientName?: string | null;
   workspaceName: string;
   trialEndsAt: Date | string;
+  baseUrl?: string;
 }) {
   const recipientName = params.recipientName?.trim();
   const workspaceName = params.workspaceName.trim();
@@ -1246,7 +1242,7 @@ export async function sendTrialExpirationEmail(params: {
     year: 'numeric',
     timeZone: 'UTC',
   }).format(trialEndDate);
-  const subscriptionLink = `${getBaseUrl()}/dashboard/account/subscription`;
+  const subscriptionLink = `${getBaseUrl(params.baseUrl)}/dashboard/account/subscription`;
 
   try {
     const html = `

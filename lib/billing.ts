@@ -1,6 +1,7 @@
 import { createHmac, randomUUID, timingSafeEqual } from 'crypto';
 
 import { getDefaultBillingMarket as getDefaultBillingMarketFromCountry } from '@/lib/billing-market';
+import { resolvePublicBaseUrl } from '@/lib/app-url';
 import type { OrganizationStatus } from '@/models/Organization';
 import { PRICING_PLANS, getPlanChargeValue } from '@/lib/pricing';
 import { getOrganizationPlanLabel, type OrganizationTierId } from '@/lib/subscription-plans';
@@ -1328,8 +1329,8 @@ export async function createPayPalCardCheckoutOrder(args: {
                   },
                 },
                 experience_context: {
-                  return_url: `${(args.baseUrl || 'http://localhost:3000').replace(/\/$/, '')}/dashboard/account/subscription?paypal_checkout=approved`,
-                  cancel_url: `${(args.baseUrl || 'http://localhost:3000').replace(/\/$/, '')}/dashboard/account/subscription?paypal_checkout=cancelled`,
+                  return_url: `${resolvePublicBaseUrl({ explicitBaseUrl: args.baseUrl })}/dashboard/account/subscription?paypal_checkout=approved`,
+                  cancel_url: `${resolvePublicBaseUrl({ explicitBaseUrl: args.baseUrl })}/dashboard/account/subscription?paypal_checkout=cancelled`,
                   payment_method_preference: 'IMMEDIATE_PAYMENT_REQUIRED',
                   brand_name: 'SignWorkflow',
                   locale: 'en-US',

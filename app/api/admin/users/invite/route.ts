@@ -5,6 +5,7 @@ import crypto from 'crypto';
 import { z } from 'zod';
 
 import { getClientIp, getUserAgent, isSecureRequest, withSecurityHeaders } from '@/lib/auth';
+import { resolvePublicBaseUrl } from '@/lib/app-url';
 import { writeAuditEvent } from '@/lib/audit';
 import { verifyAdminPromotion } from '@/lib/admin-governance';
 import { generatePasswordResetToken } from '@/lib/forgotPasswordHelpers';
@@ -251,7 +252,7 @@ export async function POST(req: NextRequest) {
         await existingUser.save();
       }
 
-      const baseUrl = (process.env.NEXT_PUBLIC_BASE_URL || '').trim() || new URL(req.url).origin;
+      const baseUrl = resolvePublicBaseUrl({ req });
       const loginLink = `${baseUrl}/login?email=${encodeURIComponent(normalizedEmail)}`;
       await sendOrgAddedEmail(normalizedEmail, loginLink, role);
 
@@ -334,7 +335,7 @@ export async function POST(req: NextRequest) {
         await existingUser.save();
       }
 
-      const baseUrl = (process.env.NEXT_PUBLIC_BASE_URL || '').trim() || new URL(req.url).origin;
+      const baseUrl = resolvePublicBaseUrl({ req });
       const loginLink = `${baseUrl}/login?email=${encodeURIComponent(normalizedEmail)}`;
 
       await sendOrgAddedEmail(normalizedEmail, loginLink, role);
@@ -459,7 +460,7 @@ export async function POST(req: NextRequest) {
     }
 
     const resetToken = await generatePasswordResetToken(String(newUser._id));
-    const baseUrl = (process.env.NEXT_PUBLIC_BASE_URL || '').trim() || new URL(req.url).origin;
+    const baseUrl = resolvePublicBaseUrl({ req });
     const resetLink = `${baseUrl}/reset-password?token=${encodeURIComponent(resetToken)}&email=${encodeURIComponent(normalizedEmail)}`;
 
     const emailResult = await sendUserInviteEmail(normalizedEmail, resetLink, role);

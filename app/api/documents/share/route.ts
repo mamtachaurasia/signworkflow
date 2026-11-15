@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { resolvePublicBaseUrl } from '@/lib/app-url';
 import mongoose from 'mongoose';
 import connectDB from '@/utils/db';
 import Document from '@/models/Document';
@@ -32,14 +33,6 @@ type ShareActorRecord = {
   lastName?: unknown;
 };
 
-function getBaseUrl(req: NextRequest) {
-  return (
-    process.env.NEXT_PUBLIC_BASE_URL?.trim() ||
-    process.env.NEXTAUTH_URL?.trim() ||
-    req.nextUrl.origin
-  ).replace(/\/$/, '');
-}
-
 function getDocumentBuilderPath(documentId: string): string {
   return `/builder/${encodeURIComponent(documentId)}`;
 }
@@ -52,7 +45,7 @@ function buildShareLink(args: {
   shareToken?: string;
   requiresAccountClaim?: boolean;
 }): string {
-  const baseUrl = getBaseUrl(args.req);
+  const baseUrl = resolvePublicBaseUrl({ req: args.req });
   const builderPath = getDocumentBuilderPath(args.documentId);
 
   if (args.requiresAccountClaim && args.shareToken) {
