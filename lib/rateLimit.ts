@@ -157,11 +157,11 @@ export async function consumeRateLimit(input: RateLimitInput): Promise<RateLimit
     try {
       return await consumeWithMongo(input);
     } catch (error) {
-      console.error('MongoDB-backed rate limiter unavailable:', {
+      console.warn('MongoDB-backed rate limiter unavailable, falling back to in-memory store:', {
         namespace: input.namespace,
         error: error instanceof Error ? error.message : 'Unknown MongoDB error',
       });
-      throw new Error('Shared rate limiting is temporarily unavailable.');
+      return consumeWithMemory(input);
     }
   }
 

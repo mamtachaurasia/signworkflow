@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
 import {
   clearAuthTokenCookie,
@@ -108,20 +108,21 @@ export function toClientAuthUser(
   };
 }
 
-export function clearAllAuthCookies(response: NextResponse): void {
-  clearAuthTokenCookie(response);
-  clearRefreshTokenCookie(response);
-  clearCsrfCookie(response);
+export function clearAllAuthCookies(response: NextResponse, req?: NextRequest): void {
+  clearAuthTokenCookie(response, req);
+  clearRefreshTokenCookie(response, req);
+  clearCsrfCookie(response, req);
 }
 
 export function applyAuthSessionCookies(
   response: NextResponse,
   refreshToken: string,
-  refreshExpiresAt: Date
+  refreshExpiresAt: Date,
+  req?: NextRequest
 ): void {
-  clearAuthTokenCookie(response);
-  setRefreshTokenCookie(response, refreshToken, refreshExpiresAt);
-  setCsrfCookie(response, issueCsrfToken());
+  clearAuthTokenCookie(response, req);
+  setRefreshTokenCookie(response, refreshToken, refreshExpiresAt, req);
+  setCsrfCookie(response, issueCsrfToken(), req);
 }
 
 export async function issueSessionForUser(input: IssueSessionInput): Promise<{

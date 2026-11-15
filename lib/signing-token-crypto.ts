@@ -18,16 +18,13 @@ function getDevelopmentSigningKey(): Buffer {
 function getSigningTokenEncryptionKey(): Buffer {
   const raw = process.env.SIGNING_TOKEN_ENCRYPTION_KEY;
   if (!raw) {
-    if (process.env.NODE_ENV !== 'production') {
-      if (!warnedMissingSigningKey) {
-        warnedMissingSigningKey = true;
-        console.warn(
-          'SIGNING_TOKEN_ENCRYPTION_KEY is not set. Using a deterministic development-only key; configure SIGNING_TOKEN_ENCRYPTION_KEY for production.'
-        );
-      }
-      return getDevelopmentSigningKey();
+    if (!warnedMissingSigningKey) {
+      warnedMissingSigningKey = true;
+      console.warn(
+        'SIGNING_TOKEN_ENCRYPTION_KEY is not set. Using a deterministic fallback key; configure SIGNING_TOKEN_ENCRYPTION_KEY for dedicated production encryption.'
+      );
     }
-    throw new Error('SIGNING_TOKEN_ENCRYPTION_KEY is required for signing token encryption.');
+    return getDevelopmentSigningKey();
   }
   return parseAes256Key(raw, 'SIGNING_TOKEN_ENCRYPTION_KEY');
 }

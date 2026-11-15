@@ -11,21 +11,120 @@ export const CSRF_COOKIE_NAME = 'csrf_token';
 const AUTH_COOKIE_MAX_AGE_SECONDS = 7 * 24 * 3600;
 const LEGACY_COOKIE_PATHS = ['/api', '/api/auth'] as const;
 
+function isHttpsRequest(req?: NextRequest): boolean {
+  if (!req) {
+    return process.env.NODE_ENV === 'production';
+  }
+
+  const forwardedProto = req.headers.get('x-forwarded-proto')?.toLowerCase() || '';
+  if (forwardedProto.includes('https')) {
+    return true;
+  }
+
+  const forwarded = req.headers.get('forwarded')?.toLowerCase() || '';
+  if (forwarded.includes('proto=https')) {
+    return true;
+  }
+
+  if (req.headers.get('x-forwarded-ssl')?.toLowerCase() === 'on') {
+    return true;
+  }
+
+  const scheme =
+    req.headers.get('x-forwarded-scheme')?.toLowerCase() ||
+    req.headers.get('x-url-scheme')?.toLowerCase() ||
+    '';
+  if (scheme === 'https') {
+    return true;
+  }
+
+  const origin = req.headers.get('origin')?.toLowerCase() || '';
+  if (origin.startsWith('https://')) {
+    return true;
+  }
+
+  const referer = req.headers.get('referer')?.toLowerCase() || '';
+  if (referer.startsWith('https://')) {
+    return true;
+  }
+
+  if (req.nextUrl?.protocol === 'https:') {
+    return true;
+  }
+
+  const host = (req.headers.get('x-forwarded-host') || req.headers.get('host') || '').toLowerCase();
+  const hostname = host.split(':')[0];
+  if (
+    hostname.endsWith('.run.app') ||
+    hostname.endsWith('.aistudio.google.com') ||
+    hostname.endsWith('.googleusercontent.com') ||
+    hostname.endsWith('.web.app') ||
+    hostname.endsWith('.firebaseapp.com')
+  ) {
+    return true;
+  }
+
+  if (
+    process.env.NODE_ENV === 'production' &&
+    (Boolean(req.headers.get('x-cloud-trace-context')) ||
+      Boolean(process.env.K_SERVICE) ||
+      Boolean(process.env.K_REVISION) ||
+      Boolean(process.env.APP_URL?.startsWith('https://')))
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+function isLocalHttpOriginOrReferer(req?: NextRequest): boolean {
+  if (!req) return false;
+  const origin = req.headers.get('origin')?.toLowerCase() || '';
+  const referer = req.headers.get('referer')?.toLowerCase() || '';
+  return (
+    origin.startsWith('http://localhost') ||
+    origin.startsWith('http://127.0.0.1') ||
+    origin.startsWith('http://[::1]') ||
+    origin.startsWith('http://0.0.0.0') ||
+    referer.startsWith('http://localhost') ||
+    referer.startsWith('http://127.0.0.1') ||
+    referer.startsWith('http://[::1]') ||
+    referer.startsWith('http://0.0.0.0')
+  );
+}
+
+function getAuthCookiePolicy(
+  req?: NextRequest,
+  defaultSameSite: 'lax' | 'strict' = 'lax'
+): { secure: boolean; sameSite: 'lax' | 'strict' | 'none' } {
+  if (isHttpsRequest(req)) {
+    // AI Studio renders the app in a cross-site HTTPS iframe; SameSite=None; Secure
+    // ensures refresh and CSRF cookies persist across iframe requests and top-level tabs.
+    return { secure: true, sameSite: 'none' };
+  }
+
+  if (process.env.NODE_ENV === 'production' && !isLocalHttpOriginOrReferer(req)) {
+    return { secure: true, sameSite: 'none' };
+  }
+
+  return { secure: false, sameSite: defaultSameSite };
+}
+
 function appendLegacyCookieClearHeaders(
   response: NextResponse,
   name: string,
   options: {
     httpOnly: boolean;
-    sameSite: 'lax' | 'strict';
+    sameSite: 'lax' | 'strict' | 'none';
+    secure: boolean;
   }
 ): void {
-  const secure = process.env.NODE_ENV === 'production';
   for (const path of LEGACY_COOKIE_PATHS) {
     response.headers.append(
       'Set-Cookie',
       serializeCookie(name, '', {
         httpOnly: options.httpOnly,
-        secure,
+        secure: options.secure,
         sameSite: options.sameSite,
         path,
         maxAge: 0,
@@ -35,16 +134,16 @@ function appendLegacyCookieClearHeaders(
   }
 }
 
-export function clearAuthTokenCookie(response: NextResponse): void {
+export function clearAuthTokenCookie(response: NextResponse, req?: NextRequest): void {
+  const policy = getAuthCookiePolicy(req, 'lax');
   appendLegacyCookieClearHeaders(response, AUTH_COOKIE_NAME, {
     httpOnly: true,
-    sameSite: 'lax',
+    ...policy,
   });
 
   response.cookies.set(AUTH_COOKIE_NAME, '', {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    ...policy,
     path: '/',
     maxAge: 0,
   });
@@ -54,66 +153,69 @@ export function issueCsrfToken(): string {
   return randomBytes(32).toString('base64url');
 }
 
-export function setCsrfCookie(response: NextResponse, csrfToken: string): void {
+export function setCsrfCookie(response: NextResponse, csrfToken: string, req?: NextRequest): void {
+  const policy = getAuthCookiePolicy(req, 'strict');
   appendLegacyCookieClearHeaders(response, CSRF_COOKIE_NAME, {
     httpOnly: false,
-    sameSite: 'strict',
+    ...policy,
   });
 
   response.cookies.set(CSRF_COOKIE_NAME, csrfToken, {
     httpOnly: false,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
+    ...policy,
     path: '/',
     maxAge: AUTH_COOKIE_MAX_AGE_SECONDS,
   });
 }
 
-export function clearCsrfCookie(response: NextResponse): void {
+export function clearCsrfCookie(response: NextResponse, req?: NextRequest): void {
+  const policy = getAuthCookiePolicy(req, 'strict');
   appendLegacyCookieClearHeaders(response, CSRF_COOKIE_NAME, {
     httpOnly: false,
-    sameSite: 'strict',
+    ...policy,
   });
 
   response.cookies.set(CSRF_COOKIE_NAME, '', {
     httpOnly: false,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
+    ...policy,
     path: '/',
     maxAge: 0,
   });
 }
 
-export function setRefreshTokenCookie(response: NextResponse, refreshToken: string, expiresAt: Date): void {
+export function setRefreshTokenCookie(
+  response: NextResponse,
+  refreshToken: string,
+  expiresAt: Date,
+  req?: NextRequest
+): void {
   const secondsUntilExpiry = Math.max(Math.floor((expiresAt.getTime() - Date.now()) / 1000), 0);
+  const policy = getAuthCookiePolicy(req, 'lax');
 
   appendLegacyCookieClearHeaders(response, REFRESH_TOKEN_COOKIE_NAME, {
     httpOnly: true,
-    // OAuth callbacks and other top-level navigations can return from a third-party origin.
-    // Lax keeps the session available on those safe navigations while still blocking most CSRF cases.
-    sameSite: 'lax',
+    ...policy,
   });
 
   response.cookies.set(REFRESH_TOKEN_COOKIE_NAME, refreshToken, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    ...policy,
     path: '/',
     maxAge: secondsUntilExpiry,
     expires: expiresAt,
   });
 }
 
-export function clearRefreshTokenCookie(response: NextResponse): void {
+export function clearRefreshTokenCookie(response: NextResponse, req?: NextRequest): void {
+  const policy = getAuthCookiePolicy(req, 'lax');
   appendLegacyCookieClearHeaders(response, REFRESH_TOKEN_COOKIE_NAME, {
     httpOnly: true,
-    sameSite: 'lax',
+    ...policy,
   });
 
   response.cookies.set(REFRESH_TOKEN_COOKIE_NAME, '', {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    ...policy,
     path: '/',
     maxAge: 0,
   });
@@ -220,12 +322,28 @@ export function isSecureRequest(req: NextRequest): boolean {
     }
   }
 
-  const forwardedProto = req.headers.get('x-forwarded-proto');
-  if (forwardedProto) {
-    return forwardedProto.includes('https');
+  if (isHttpsRequest(req)) {
+    return true;
   }
 
-  return req.nextUrl.protocol === 'https:';
+  // Managed container proxies often terminate TLS externally and forward plain HTTP
+  // over loopback without preserving X-Forwarded-Proto. Only reject when the caller
+  // explicitly originates from a non-local http:// browser origin.
+  const origin = req.headers.get('origin')?.toLowerCase() || '';
+  const referer = req.headers.get('referer')?.toLowerCase() || '';
+  const isExplicitInsecureOrigin =
+    (origin.startsWith('http://') &&
+      !origin.startsWith('http://localhost') &&
+      !origin.startsWith('http://127.0.0.1') &&
+      !origin.startsWith('http://[::1]') &&
+      !origin.startsWith('http://0.0.0.0')) ||
+    (referer.startsWith('http://') &&
+      !referer.startsWith('http://localhost') &&
+      !referer.startsWith('http://127.0.0.1') &&
+      !referer.startsWith('http://[::1]') &&
+      !referer.startsWith('http://0.0.0.0'));
+
+  return !isExplicitInsecureOrigin;
 }
 
 function resolveAllowedOrigins(): string[] {
@@ -275,12 +393,13 @@ export function withSecurityHeaders(req: NextRequest, response: NextResponse): N
 }
 
 export function unauthorizedResponse(
-  body: Record<string, unknown> = { message: 'Unauthorized' }
+  body: Record<string, unknown> = { message: 'Unauthorized' },
+  req?: NextRequest
 ): NextResponse {
   const response = NextResponse.json(body, { status: 401 });
-  clearAuthTokenCookie(response);
-  clearRefreshTokenCookie(response);
-  clearCsrfCookie(response);
+  clearAuthTokenCookie(response, req);
+  clearRefreshTokenCookie(response, req);
+  clearCsrfCookie(response, req);
   applySecurityHeaders(response);
   return response;
 }

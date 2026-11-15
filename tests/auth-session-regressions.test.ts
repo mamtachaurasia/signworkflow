@@ -1,8 +1,8 @@
 import { NextRequest, type NextResponse } from 'next/server';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { GET as logoutGet } from '@/app/api/auth/logout/route';
-import { clearRefreshTokenCookie, setRefreshTokenCookie } from '@/lib/auth';
+import { clearRefreshTokenCookie, isSecureRequest, setRefreshTokenCookie } from '@/lib/auth';
 import { DASHBOARD_BUILDER_REQUEST_PATH_HEADER } from '@/lib/dashboard-builder-auth';
 import { proxy } from '@/proxy';
 
@@ -159,5 +159,68 @@ describe('logout redirect sanitization', () => {
     const location = res.headers.get('location') || '';
 
     expect(location).toContain('/dashboard');
+  });
+});
+
+describe('production HTTPS detection', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('treats requests as secure when internal proxy overwrites x-forwarded-proto to http on HTTPS origin', () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('K_SERVICE', '');
+    vi.stubEnv('K_REVISION', '');
+    vi.stubEnv('APP_URL', '');
+
+    const req = new NextRequest('http://localhost:3000/api/auth/login', {
+      headers: {
+        'x-forwarded-proto': 'http',
+        origin: 'https://app.example.com',
+      },
+    });
+
+    expect(isSecureRequest(req)).toBe(true);
+  });
+
+  it('treats Cloud Run production requests as secure even without x-forwarded-proto', () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('K_SERVICE', 'signworkflow');
+
+    const req = new NextRequest('http://127.0.0.1:3000/api/user/profile');
+
+    expect(isSecureRequest(req)).toBe(true);
+  });
+
+  it('rejects explicit plain HTTP external origins in unproxied production environments', () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('K_SERVICE', '');
+    vi.stubEnv('K_REVISION', '');
+    vi.stubEnv('APP_URL', '');
+
+    const req = new NextRequest('http://example.com/api/auth/login', {
+      headers: {
+        host: 'example.com',
+        origin: 'http://example.com',
+      },
+    });
+
+    expect(isSecureRequest(req)).toBe(false);
+  });
+
+  it('allows proxied production requests when proxy strips x-forwarded-proto and origin', () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('K_SERVICE', '');
+    vi.stubEnv('K_REVISION', '');
+    vi.stubEnv('APP_URL', '');
+
+    const req = new NextRequest('http://127.0.0.1:3000/api/auth/login', {
+      headers: {
+        host: '127.0.0.1:3000',
+        'x-forwarded-proto': 'http',
+      },
+    });
+
+    expect(isSecureRequest(req)).toBe(true);
   });
 });

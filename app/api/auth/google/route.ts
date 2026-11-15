@@ -331,7 +331,7 @@ export async function POST(req: NextRequest) {
       { status: 200 }
     );
 
-    applyAuthSessionCookies(response, issued.refreshToken, issued.refreshExpiresAt);
+    applyAuthSessionCookies(response, issued.refreshToken, issued.refreshExpiresAt, req);
 
     return withSecurityHeaders(req, response);
   } catch (err) {

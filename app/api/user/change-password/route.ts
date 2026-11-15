@@ -127,7 +127,7 @@ export async function POST(req: NextRequest) {
       { status: 200 }
     );
 
-    clearAllAuthCookies(response);
+    clearAllAuthCookies(response, req);
 
     return withSecurityHeaders(req, response);
   } catch (err) {

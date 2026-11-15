@@ -91,13 +91,13 @@ export async function POST(req: NextRequest) {
   }
 
   const response = NextResponse.json({ success: true, message: 'Logged out successfully' }, { status: 200 });
-  clearAllAuthCookies(response);
+  clearAllAuthCookies(response, req);
   return withSecurityHeaders(req, response);
 }
 
 export async function GET(req: NextRequest) {
   const nextPath = sanitizeRedirectTarget(req.nextUrl.searchParams.get('next'));
   const response = NextResponse.redirect(new URL(nextPath, req.url));
-  clearAllAuthCookies(response);
+  clearAllAuthCookies(response, req);
   return withSecurityHeaders(req, response);
 }

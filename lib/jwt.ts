@@ -1,4 +1,6 @@
-import { randomUUID } from 'crypto';
+import { createPublicKey, generateKeyPairSync, randomUUID } from 'crypto';
+import fs from 'fs';
+import path from 'path';
 import jwt, { JwtPayload, SignOptions } from 'jsonwebtoken';
 
 export interface AccessTokenPayload {
@@ -23,6 +25,17 @@ const ACCESS_TOKEN_TTL = process.env.ACCESS_TOKEN_TTL || '15m';
 const REFRESH_TOKEN_TTL = process.env.REFRESH_TOKEN_TTL || '30d';
 const JWT_ISSUER = process.env.JWT_ISSUER || 'contract-esign';
 const JWT_AUDIENCE = process.env.JWT_AUDIENCE || 'contract-esign-app';
+const FALLBACK_KEY_FILE = path.join('/tmp', '.signworkflow-jwt-keys.json');
+
+interface RuntimeKeyPair {
+  privateKey: string;
+  publicKey: string;
+}
+
+const globalForJwt = globalThis as typeof globalThis & {
+  __signworkflowRuntimeJwtKeys?: RuntimeKeyPair;
+  __signworkflowWarnedMissingJwtKeys?: boolean;
+};
 
 class InvalidPemKeyError extends Error {
   constructor(message: string) {
@@ -47,7 +60,7 @@ function normalizePem(raw: string): string {
   throw new InvalidPemKeyError('Unable to decode PEM key from environment variable.');
 }
 
-function readPemFromEnv(names: string[]): string {
+function readOptionalPemFromEnv(names: string[]): string | null {
   const cacheKey = names.join(',');
   if (keyCache.has(cacheKey)) {
     return keyCache.get(cacheKey)!;
@@ -61,23 +74,117 @@ function readPemFromEnv(names: string[]): string {
     return key;
   }
 
-  throw new Error(`Missing JWT key material. Expected one of: ${names.join(', ')}`);
+  return null;
+}
+
+function isValidRuntimeKeyPair(candidate: unknown): candidate is RuntimeKeyPair {
+  if (!candidate || typeof candidate !== 'object') {
+    return false;
+  }
+  const maybe = candidate as Partial<RuntimeKeyPair>;
+  return (
+    typeof maybe.privateKey === 'string' &&
+    maybe.privateKey.includes('BEGIN') &&
+    typeof maybe.publicKey === 'string' &&
+    maybe.publicKey.includes('BEGIN')
+  );
+}
+
+function getOrCreateRuntimeKeyPair(): RuntimeKeyPair {
+  if (globalForJwt.__signworkflowRuntimeJwtKeys) {
+    return globalForJwt.__signworkflowRuntimeJwtKeys;
+  }
+
+  try {
+    if (fs.existsSync(FALLBACK_KEY_FILE)) {
+      const parsed = JSON.parse(fs.readFileSync(FALLBACK_KEY_FILE, 'utf-8'));
+      if (isValidRuntimeKeyPair(parsed)) {
+        globalForJwt.__signworkflowRuntimeJwtKeys = parsed;
+        return parsed;
+      }
+    }
+  } catch {
+    // Ignore unreadable fallback key file and generate a fresh keypair below.
+  }
+
+  const { privateKey, publicKey } = generateKeyPairSync('rsa', {
+    modulusLength: 2048,
+    publicKeyEncoding: { type: 'spki', format: 'pem' },
+    privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+  });
+
+  const generated: RuntimeKeyPair = { privateKey, publicKey };
+
+  try {
+    fs.writeFileSync(FALLBACK_KEY_FILE, JSON.stringify(generated), {
+      mode: 0o600,
+      flag: 'wx',
+    });
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException)?.code === 'EEXIST') {
+      try {
+        const existing = JSON.parse(fs.readFileSync(FALLBACK_KEY_FILE, 'utf-8'));
+        if (isValidRuntimeKeyPair(existing)) {
+          globalForJwt.__signworkflowRuntimeJwtKeys = existing;
+          return existing;
+        }
+      } catch {
+        // Fall through to in-memory generated pair.
+      }
+    }
+  }
+
+  if (!globalForJwt.__signworkflowWarnedMissingJwtKeys) {
+    globalForJwt.__signworkflowWarnedMissingJwtKeys = true;
+    console.warn(
+      'JWT PEM env vars are not configured. Using runtime-generated RS256 keypair; configure JWT_PRIVATE_KEY and JWT_PUBLIC_KEY for multi-instance persistence.'
+    );
+  }
+
+  globalForJwt.__signworkflowRuntimeJwtKeys = generated;
+  return generated;
+}
+
+function derivePublicKeyFromPrivate(privateKey: string): string {
+  return createPublicKey(privateKey).export({ type: 'spki', format: 'pem' }).toString();
 }
 
 function getAccessPrivateKey(): string {
-  return readPemFromEnv(['JWT_ACCESS_PRIVATE_KEY', 'JWT_PRIVATE_KEY']);
+  return (
+    readOptionalPemFromEnv(['JWT_ACCESS_PRIVATE_KEY', 'JWT_PRIVATE_KEY']) ??
+    getOrCreateRuntimeKeyPair().privateKey
+  );
 }
 
 function getAccessPublicKey(): string {
-  return readPemFromEnv(['JWT_ACCESS_PUBLIC_KEY', 'JWT_PUBLIC_KEY']);
+  const fromEnv = readOptionalPemFromEnv(['JWT_ACCESS_PUBLIC_KEY', 'JWT_PUBLIC_KEY']);
+  if (fromEnv) return fromEnv;
+
+  const privateFromEnv = readOptionalPemFromEnv(['JWT_ACCESS_PRIVATE_KEY', 'JWT_PRIVATE_KEY']);
+  if (privateFromEnv) {
+    return derivePublicKeyFromPrivate(privateFromEnv);
+  }
+
+  return getOrCreateRuntimeKeyPair().publicKey;
 }
 
 function getRefreshPrivateKey(): string {
-  return readPemFromEnv(['JWT_REFRESH_PRIVATE_KEY', 'JWT_PRIVATE_KEY']);
+  return (
+    readOptionalPemFromEnv(['JWT_REFRESH_PRIVATE_KEY', 'JWT_PRIVATE_KEY']) ??
+    getOrCreateRuntimeKeyPair().privateKey
+  );
 }
 
 function getRefreshPublicKey(): string {
-  return readPemFromEnv(['JWT_REFRESH_PUBLIC_KEY', 'JWT_PUBLIC_KEY']);
+  const fromEnv = readOptionalPemFromEnv(['JWT_REFRESH_PUBLIC_KEY', 'JWT_PUBLIC_KEY']);
+  if (fromEnv) return fromEnv;
+
+  const privateFromEnv = readOptionalPemFromEnv(['JWT_REFRESH_PRIVATE_KEY', 'JWT_PRIVATE_KEY']);
+  if (privateFromEnv) {
+    return derivePublicKeyFromPrivate(privateFromEnv);
+  }
+
+  return getOrCreateRuntimeKeyPair().publicKey;
 }
 
 export function isJwtConfigurationError(error: unknown): boolean {

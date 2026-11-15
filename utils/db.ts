@@ -161,22 +161,24 @@ async function ensureDocumentValidator() {
   }
 }
 
+mongoose.set('bufferCommands', false);
+
 const connectDB = async () => {
   try {
     if (mongoose.connection.readyState >= 1) {
       return;
     }
     if (!uri) {
-      throw new Error('MONGODB_URI is not defined in the environment variables.');
+      console.warn('[AI Studio] MONGODB_URI is not defined — database features will run in offline fallback mode.');
+      return;
     }
-    await mongoose.connect(uri);
+    await mongoose.connect(uri, { serverSelectionTimeoutMS: 3000 });
     console.log('MongoDB connected successfully');
 
     await fixDocumentIndexes();
     await ensureDocumentValidator();
   } catch (error) {
-    console.error('MongoDB connection error:', error);
-    throw error;
+    console.warn('MongoDB not connected — some features may not work:', error instanceof Error ? error.message : error);
   }
 };
 

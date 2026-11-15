@@ -34,9 +34,9 @@ import UserModel from '@/models/Users';
 
 export const runtime = 'nodejs';
 
-function unauthorizedWithClearedCookies(message = 'Unauthorized'): NextResponse {
-  const response = unauthorizedResponse({ message });
-  clearAllAuthCookies(response);
+function unauthorizedWithClearedCookies(message = 'Unauthorized', req?: NextRequest): NextResponse {
+  const response = unauthorizedResponse({ message }, req);
+  clearAllAuthCookies(response, req);
   return response;
 }
 
@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
 
   const refreshToken = req.cookies.get(REFRESH_TOKEN_COOKIE_NAME)?.value;
   if (!refreshToken) {
-    return withSecurityHeaders(req, unauthorizedWithClearedCookies('Missing refresh token'));
+    return withSecurityHeaders(req, unauthorizedWithClearedCookies('Missing refresh token', req));
   }
 
   let payload: ReturnType<typeof verifyRefreshToken>;
@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    return withSecurityHeaders(req, unauthorizedWithClearedCookies('Invalid refresh token'));
+    return withSecurityHeaders(req, unauthorizedWithClearedCookies('Invalid refresh token', req));
   }
 
   try {
@@ -115,7 +115,7 @@ export async function POST(req: NextRequest) {
         userAgent,
         metadata: { reason: 'session_not_found', sessionId: payload.sessionId },
       });
-      return withSecurityHeaders(req, unauthorizedWithClearedCookies('Session not found'));
+      return withSecurityHeaders(req, unauthorizedWithClearedCookies('Session not found', req));
     }
 
     if (session.revoked || new Date(session.expiresAt).getTime() <= Date.now()) {
@@ -126,7 +126,7 @@ export async function POST(req: NextRequest) {
         userAgent,
         metadata: { reason: session.revoked ? 'session_revoked' : 'session_expired' },
       });
-      return withSecurityHeaders(req, unauthorizedWithClearedCookies('Refresh session expired or revoked'));
+      return withSecurityHeaders(req, unauthorizedWithClearedCookies('Refresh session expired or revoked', req));
     }
 
     const user = await UserModel.findById(session.userId)
@@ -152,7 +152,7 @@ export async function POST(req: NextRequest) {
         userAgent,
         metadata: { reason: 'user_inactive_or_deleted' },
       });
-      return withSecurityHeaders(req, unauthorizedWithClearedCookies('User is inactive or deleted'));
+      return withSecurityHeaders(req, unauthorizedWithClearedCookies('User is inactive or deleted', req));
     }
 
     if (user.tokenVersion !== payload.tokenVersion) {
@@ -167,7 +167,7 @@ export async function POST(req: NextRequest) {
           received: payload.tokenVersion,
         },
       });
-      return withSecurityHeaders(req, unauthorizedWithClearedCookies('Token version mismatch'));
+      return withSecurityHeaders(req, unauthorizedWithClearedCookies('Token version mismatch', req));
     }
 
     const authOrgState = await resolveAuthOrgState(user, { bootstrapIfMissing: true });
@@ -221,7 +221,7 @@ export async function POST(req: NextRequest) {
 
       return withSecurityHeaders(
         req,
-        unauthorizedWithClearedCookies('Refresh token reuse detected. All sessions have been revoked.')
+        unauthorizedWithClearedCookies('Refresh token reuse detected. All sessions have been revoked.', req)
       );
     }
 
@@ -240,7 +240,7 @@ export async function POST(req: NextRequest) {
       user: toClientAuthUser(toSafeAuthUser(user), authOrgState),
     });
 
-    applyAuthSessionCookies(response, newRefreshToken, newRefreshExpiry);
+    applyAuthSessionCookies(response, newRefreshToken, newRefreshExpiry, req);
 
     return withSecurityHeaders(req, response);
   } catch (error) {

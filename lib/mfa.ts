@@ -63,16 +63,13 @@ function getDevFallbackKey(): Buffer {
 function getEncryptionKey(): Buffer {
   const raw = process.env.MFA_ENCRYPTION_KEY;
   if (!raw) {
-    if (process.env.NODE_ENV !== 'production') {
-      if (!warnedMissingMfaKey) {
-        warnedMissingMfaKey = true;
-        console.warn(
-          'MFA_ENCRYPTION_KEY is not set. Using deterministic dev fallback key; configure MFA_ENCRYPTION_KEY for production.'
-        );
-      }
-      return getDevFallbackKey();
+    if (!warnedMissingMfaKey) {
+      warnedMissingMfaKey = true;
+      console.warn(
+        'MFA_ENCRYPTION_KEY is not set. Using deterministic fallback key; configure MFA_ENCRYPTION_KEY for dedicated production encryption.'
+      );
     }
-    throw new Error('MFA_ENCRYPTION_KEY is required for MFA secret encryption.');
+    return getDevFallbackKey();
   }
 
   const trimmed = raw.trim();

@@ -6,6 +6,7 @@ process.env.BROWSERSLIST_IGNORE_OLD_DATA ??= "1";
 process.env.BASELINE_BROWSER_MAPPING_IGNORE_OLD_DATA ??= "1";
 
 const nextConfig: NextConfig = {
+  output: 'standalone',
   // Explicitly configure Turbopack to silence Next.js 16 warning about having a webpack config
   // without a turbopack config. We don't need any special Turbopack options right now.
   turbopack: {},

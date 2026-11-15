@@ -328,7 +328,7 @@ export async function DELETE(req: NextRequest) {
       },
       { status: 200 }
     );
-    clearAllAuthCookies(response);
+    clearAllAuthCookies(response, req);
     return withSecurityHeaders(req, response);
   } catch (err) {
     console.error('Delete account route error:', err);

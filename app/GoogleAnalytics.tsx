@@ -1,7 +1,6 @@
 'use client';
 
 import Script from 'next/script';
-import { Analytics } from '@vercel/analytics/next';
 
 import { getGoogleAnalyticsConfigScript } from '@/lib/gtag';
 
@@ -22,7 +21,6 @@ export default function GoogleAnalytics() {
           </Script>
         </>
       )}
-      <Analytics />
     </>
   );
 }
